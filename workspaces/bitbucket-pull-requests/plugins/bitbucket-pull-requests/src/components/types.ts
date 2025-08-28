@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-export {
-  bitbucketPlugin,
-  EntityBitbucketPullRequestsContent,
-  HomePagePullRequestsCard,
-} from './plugin';
+export interface BitbucketPullRequestsProps {
+  title?: string;
+  maxItems?: number;
+  userRole?: 'REVIEWER' | 'AUTHOR';
+}

@@ -13,9 +13,5 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-export {
-  bitbucketPlugin,
-  EntityBitbucketPullRequestsContent,
-  HomePagePullRequestsCard,
-} from './plugin';
+export { BitbucketPullRequestsCard } from './HomePage/HomePagePullRequestsCard';
+export type { PullRequest, BitbucketPullRequestResponse } from './types';

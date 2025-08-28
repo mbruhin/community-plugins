@@ -15,7 +15,12 @@
  */
 
 import { UrlPatternDiscovery } from '@backstage/core-app-api';
-import { AnyApiRef, errorApiRef } from '@backstage/core-plugin-api';
+import {
+  AnyApiRef,
+  errorApiRef,
+  identityApiRef,
+  IdentityApi,
+} from '@backstage/core-plugin-api';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { rest } from 'msw';
 import {
@@ -33,9 +38,24 @@ import { translationApiRef } from '@backstage/core-plugin-api/alpha';
 
 const discoveryApi = UrlPatternDiscovery.compile('http://exampleapi.com');
 
+const identityApi: IdentityApi = {
+  getBackstageIdentity: async () => ({
+    type: 'user',
+    userEntityRef: 'user:default/test-user',
+    ownershipEntityRefs: [],
+  }),
+  getCredentials: jest.fn().mockResolvedValue({ token: 'test-token' }),
+  getProfileInfo: jest.fn().mockResolvedValue({
+    email: 'test-user@example.com',
+    displayName: 'Test User',
+  }),
+  signOut: jest.fn(),
+};
+
 const apis: [AnyApiRef, Partial<unknown>][] = [
-  [bitbucketApiRef, new BitbucketApi({ discoveryApi })],
+  [bitbucketApiRef, new BitbucketApi({ discoveryApi, identityApi })],
   [errorApiRef, new MockErrorApi()],
+  [identityApiRef, identityApi],
   [translationApiRef, mockApis.translation()],
 ];
 
