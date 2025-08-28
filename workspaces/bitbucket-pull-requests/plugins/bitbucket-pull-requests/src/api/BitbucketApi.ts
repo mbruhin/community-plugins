@@ -20,6 +20,7 @@ import {
   createApiRef,
   DiscoveryApi,
   IdentityApi,
+  ConfigApi,
 } from '@backstage/core-plugin-api';
 import { parseEntityRef } from '@backstage/catalog-model';
 
@@ -30,7 +31,6 @@ export const bitbucketApiRef = createApiRef<BitbucketApi>({
 export type User = {
   displayName: string;
   slug: string;
-  // Additional fields can be added here later as needed
 };
 
 export type BuildStatus = {
@@ -59,37 +59,57 @@ export type PullRequest = {
   buildStatus?: 'SUCCESSFUL' | 'FAILED' | 'INPROGRESS' | 'STOPPED' | 'UNKNOWN';
   reviewers: User[];
 };
-// TODO: this is currently listed as DEFAULT but it can't be changed.  Either fix the name or make it configurable
 const DEFAULT_PROXY_PATH = '/bitbucket/api';
+const DEFAULT_LIMIT = 50;
 type Options = {
   discoveryApi: DiscoveryApi;
   identityApi: IdentityApi;
+  configApi?: ConfigApi;
 };
 export class BitbucketApi {
   private readonly discoveryApi: DiscoveryApi;
   private readonly identityApi: IdentityApi;
+  private readonly configApi?: ConfigApi;
 
   constructor(options: Options) {
     this.discoveryApi = options.discoveryApi;
     this.identityApi = options.identityApi;
+    this.configApi = options.configApi;
+  }
+
+  /**
+   * Gets the configured proxy path from config or returns the default
+   * @returns The configured proxy path
+   */
+  private getProxyPath(): string {
+    return (
+      this.configApi?.getOptionalString('bitbucket.proxyPath') ||
+      DEFAULT_PROXY_PATH
+    );
   }
 
   async fetchPullRequestListForRepo(
     project: string,
     repo: string,
     state?: string,
+    limit: number = DEFAULT_LIMIT,
   ): Promise<PullRequest[]> {
     const proxyUrl = await this.discoveryApi.getBaseUrl('proxy');
-    const response = await fetch(
-      `${proxyUrl}${DEFAULT_PROXY_PATH}/projects/${project}/repos/${repo}/pull-requests?state=${
-        state || ''
-      }`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
+    const url = new URL(
+      `${proxyUrl}${this.getProxyPath()}/projects/${project}/repos/${repo}/pull-requests`,
     );
+
+    const params = new URLSearchParams();
+    if (state) {
+      params.append('state', state);
+    }
+    params.append('limit', limit.toString());
+
+    const response = await fetch(`${url}?${params}`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
     if (!response.ok) {
       throw new Error('Failed to fetch pull requests');
     }
@@ -101,7 +121,7 @@ export class BitbucketApi {
   private async fetchBuildStatus(commitId: string): Promise<BuildStatus> {
     const proxyUrl = await this.discoveryApi.getBaseUrl('proxy');
     const response = await fetch(
-      `${proxyUrl}${DEFAULT_PROXY_PATH}/rest/build-status/latest/commits/stats/${commitId}`,
+      `${proxyUrl}${this.getProxyPath()}/rest/build-status/latest/commits/stats/${commitId}`,
       { headers: { 'Content-Type': 'application/json' } },
     );
 
@@ -126,17 +146,20 @@ export class BitbucketApi {
     pr: PullRequest,
   ): Promise<PullRequest> {
     if (pr.latestCommit) {
-      try {
-        const buildStatus = await this.fetchBuildStatus(pr.latestCommit);
-        return { ...pr, buildStatus: this.determineBuildState(buildStatus) };
-      } catch (error) {
-        return { ...pr, buildStatus: 'UNKNOWN' };
-      }
+      return this.fetchBuildStatus(pr.latestCommit)
+        .then(buildStatus => ({
+          ...pr,
+          buildStatus: this.determineBuildState(buildStatus),
+        }))
+        .catch(() => ({
+          ...pr,
+          buildStatus: 'UNKNOWN' as const,
+        }));
     }
     return pr;
   }
 
-  private mapPullRequests(data: any): PullRequest[] {
+  public mapPullRequests(data: any): PullRequest[] {
     return (
       data.values?.map((pr: any) => ({
         id: pr.id,
@@ -168,8 +191,7 @@ export class BitbucketApi {
   async fetchUserPullRequests(
     role: 'REVIEWER' | 'AUTHOR' = 'REVIEWER',
     state: 'OPEN' | 'MERGED' | 'DECLINED' | 'ALL' = 'OPEN',
-    // TODO: limit this or paginate it?
-    limit: number = 50,
+    limit: number = DEFAULT_LIMIT,
     options: { includeBuildStatus?: boolean } = { includeBuildStatus: true },
   ): Promise<PullRequest[]> {
     if (!this.identityApi) {
@@ -186,7 +208,7 @@ export class BitbucketApi {
 
     const proxyUrl = await this.discoveryApi.getBaseUrl('proxy');
     const url = new URL(
-      `${proxyUrl}${DEFAULT_PROXY_PATH}/dashboard/pull-requests`,
+      `${proxyUrl}${this.getProxyPath()}/dashboard/pull-requests`,
     );
 
     const params = new URLSearchParams({
@@ -194,9 +216,7 @@ export class BitbucketApi {
       limit: limit.toString(),
       state,
       role,
-      // TODO: revert this
-      // user: name,
-      user: 'mbruhin',
+      user: name,
     });
 
     const response = await fetch(`${url}?${params}`, {
@@ -206,10 +226,10 @@ export class BitbucketApi {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
       let errorMessage = 'Failed to fetch pull requests from Bitbucket';
 
       try {
+        const errorText = await response.text();
         const errorJson = JSON.parse(errorText);
 
         if (
@@ -219,7 +239,7 @@ export class BitbucketApi {
           errorMessage = `User '${name}' not found in Bitbucket. Please ensure your Bitbucket account exists.`;
         }
       } catch (e) {
-        // If we can't parse the error, we'll use the generic message
+        errorMessage = e instanceof Error ? e.message : String(e);
       }
 
       throw new Error(errorMessage);

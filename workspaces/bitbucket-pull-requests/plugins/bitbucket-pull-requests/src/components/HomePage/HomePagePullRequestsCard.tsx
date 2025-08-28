@@ -23,7 +23,7 @@ interface TabPanelProps {
   value: number;
 }
 
-function TabPanel(props: TabPanelProps) {
+function TabPanel(props: Readonly<TabPanelProps>) {
   const { children, value, index, ...other } = props;
 
   return (
@@ -50,7 +50,7 @@ export const HomePagePullRequestsCard = () => {
   const [value, setValue] = useState(0);
 
   const handleChange = (
-    event: globalThis.React.ChangeEvent<{}>,
+    _event: globalThis.React.ChangeEvent<{}>,
     newValue: number,
   ) => {
     setValue(newValue);
