@@ -258,6 +258,10 @@ workspace/multi-source-security-viewer:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/multi-source-security-viewer/**']
 
+workspace/n8n:
+- changed-files:
+  - any-glob-to-any-file: ['workspaces/n8n/**']
+
 workspace/newrelic:
 - changed-files:
   - any-glob-to-any-file: ['workspaces/newrelic/**']
