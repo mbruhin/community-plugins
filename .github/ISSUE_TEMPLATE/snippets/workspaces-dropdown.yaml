@@ -69,6 +69,7 @@ attributes:
     - microsoft-calendar
     - mta
     - multi-source-security-viewer
+    - n8n
     - newrelic
     - nexus-repository-manager
     - nomad

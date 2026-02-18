@@ -193,6 +193,9 @@ workspace/mta:
 workspace/multi-source-security-viewer:
   - "Workspace\\s*multi-source-security-viewer"
 
+workspace/n8n:
+  - "Workspace\\s*n8n"
+
 workspace/newrelic:
   - "Workspace\\s*newrelic"
 
